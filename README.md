@@ -24,6 +24,3 @@ Contributions to the project are welcome! Feel free to report bugs, suggest feat
 
 ## License
 This project is licensed under the Apache License 2.0. For more details, see the [LICENSE](LICENSE) file.
-
-## Contact
-If you encounter any issues or need support, please [contact us](mailto:your-email@example.com).
