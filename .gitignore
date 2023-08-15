@@ -4,9 +4,6 @@ __pycache__/
 *.py[cod]
 *.env
 
-# Google Apps Script files
-*.gs
-
 # Other files
 .DS_Store
 *.vscode

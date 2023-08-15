@@ -29,8 +29,10 @@ def convert_to_json(stock_data):
     return json_data
 
 def post_to_gas(json_data, gas_url):
-    response = requests.post(gas_url, json=json_data)
-    return response
+    for ticker, data in json_data.items():
+        response = requests.post(gas_url, json={ticker: data})
+        response_json = response.json()
+        print(f"Processed ticker: {ticker}, Response: {json.dumps(response_json, indent=4)}")
 
 def fetch_tickers_from_gas(gas_url):
     response = requests.get(gas_url)
@@ -46,9 +48,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     tickers = fetch_tickers_from_gas(gas_url) if len(sys.argv) <= 1 else sys.argv[1].split(',')
-
+    print(f"Retrieved tickers: {', '.join(tickers)}")
+    
     stock_data = fetch_stock_data(tickers, period_input)
     json_data = convert_to_json(stock_data)
 
-    response = post_to_gas(json_data, gas_url)
-    print(response.text)
+    post_to_gas(json_data, gas_url)
