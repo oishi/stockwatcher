@@ -1,10 +1,9 @@
 import yfinance as yf
-import pandas as pd
 import json
 import requests
 import sys
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -39,7 +38,7 @@ def fetch_tickers_from_gas(gas_url):
     return json.loads(response.text)
 
 if __name__ == "__main__":
-    period_input = sys.argv[1] if len(sys.argv) > 1 else "10d"
+    period_input = sys.argv[1] if len(sys.argv) > 1 else "3d"
 
     gas_url = os.getenv("GAS_ENDPOINT_URL")  # GASエンドポイントURLを環境変数から取得
 
@@ -49,7 +48,7 @@ if __name__ == "__main__":
 
     tickers = fetch_tickers_from_gas(gas_url) if len(sys.argv) <= 1 else sys.argv[1].split(',')
     print(f"Retrieved tickers: {', '.join(tickers)}")
-    
+
     stock_data = fetch_stock_data(tickers, period_input)
     json_data = convert_to_json(stock_data)
 
