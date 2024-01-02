@@ -83,9 +83,9 @@ function updateListSheet(jsonData) {
 
   // 定数
   var CLOSE_PRICE_COLUMN = colidx("E"); // 終値が格納されている列
-  var LATEST_CLOSE_PRICE_COLUMN = colidx("I"); // listシートで最新終値を記録する列
-  var DIFFERENCE_START_COLUMN = colidx("J"); // 差分を記録する開始列
-  var SPARKLINE_COLUMN = colidx("Q"); // R列にスパークラインを記録する
+  var LATEST_CLOSE_PRICE_COLUMN = colidx("Y"); // listシートで最新終値を記録する列
+  var DIFFERENCE_START_COLUMN = colidx("Z"); // 差分を記録する開始列
+  var SPARKLINE_COLUMN = colidx("AG"); // R列にスパークラインを記録する
   var DIFFERENCE_NUM = 7;
 
   // J,K,L,M,N列のヘッダから差分を取得
@@ -99,6 +99,9 @@ function updateListSheet(jsonData) {
     var stockSheet = ss.getSheetByName(ticker);
     if (stockSheet) {
       var lastRow = stockSheet.getLastRow();
+      if (lastRow <= 1) { // データまだ無い場合
+        return;
+      }
       var latestClosePrice = stockSheet.getRange(lastRow, CLOSE_PRICE_COLUMN).getValue(); // 最新日付の終値 (追加箇所)
       for (var j = 0; j < businessDayDifferences.length; j++) {
         var difference = businessDayDifferences[j];
@@ -148,7 +151,12 @@ function findTickerRow(sheet, ticker) {
 
 // 列番号を返す補助関数
 function colidx(letter) {
-  return letter.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+  var column = 0;
+  var length = letter.length;
+  for (var i = 0; i < length; i++) {
+    column += (letter.charCodeAt(i) - 'A'.charCodeAt(0) + 1) * Math.pow(26, length - i - 1);
+  }
+  return column;
 }
 
 // 日付情報をフォーマットする補助関数
