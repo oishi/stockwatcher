@@ -1,0 +1,21 @@
+{
+  "name": "StockWatcher Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  // ここを "customizations" で包む
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.pythonPath": "/usr/local/bin/python"
+      },
+      "extensions": ["ms-python.python", "ms-azuretools.vscode-docker"]
+    }
+  },
+  "postCreateCommand": "pip install -r requirements.txt",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+  "remoteUser": "root"
+}
