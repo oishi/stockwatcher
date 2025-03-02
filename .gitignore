@@ -1,9 +1,14 @@
-
-# Python files
+# Python
 __pycache__/
 *.py[cod]
+venv/
 *.env
 
-# Other files
+# IDE
+.vscode/
+
+# OS
 .DS_Store
-*.vscode
+
+# Other files
+*.vscodevenv/
