@@ -152,6 +152,7 @@ def fetch_tickers_from_gas(gas_url: str) -> List[str]:
     GASから銘柄リストを取得する関数（リトライロジック付き）
     """
     try:
+        logger.info(f"GASから銘柄リストの取得を開始します: {gas_url}")
         response = requests.get(gas_url)
         response.raise_for_status()
         tickers = json.loads(response.text)
