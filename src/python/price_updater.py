@@ -10,7 +10,8 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 import logging
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
+import random
 
 load_dotenv()
 
@@ -30,7 +31,7 @@ def format_ticker_symbol(ticker: str) -> str:
     logger.debug(f"ティッカー変換: {ticker} -> {formatted_ticker}")
     return formatted_ticker
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=10, max=60))
 def fetch_single_stock_data(ticker: str, period: str) -> pd.DataFrame:
     """
     単一銘柄のデータを取得する関数（リトライロジック付き）
@@ -50,32 +51,54 @@ def fetch_single_stock_data(ticker: str, period: str) -> pd.DataFrame:
         return data
         
     except Exception as e:
-        logger.error(f"銘柄 {formatted_ticker} のデータ取得中にエラーが発生: {str(e)}")
+        error_msg = str(e)
+        # レート制限エラーの場合はより長い待機時間を設ける
+        if "Too Many Requests" in error_msg or "Rate limited" in error_msg:
+            logger.warning(f"レート制限エラー検出: {formatted_ticker} - 追加待機を実行")
+            sleep(random.uniform(30.0, 60.0))
+        
+        logger.error(f"銘柄 {formatted_ticker} のデータ取得中にエラーが発生: {error_msg}")
         raise
 
-def fetch_stock_data(tickers: List[str], period: str) -> Dict[str, pd.DataFrame]:
+def fetch_stock_data(tickers: List[str], period: str, batch_size: int = 5) -> Dict[str, pd.DataFrame]:
     """
-    複数銘柄のデータを取得する関数
+    複数銘柄のデータを取得する関数（バッチ処理対応）
     """
     stock_data = {}
     total = len(tickers)
     failed_tickers = []
     
-    logger.info(f"開始: 全{total}銘柄のデータを取得します")
+    logger.info(f"開始: 全{total}銘柄のデータを取得します（バッチサイズ: {batch_size}）")
     
-    for i, ticker in enumerate(tickers, 1):
-        try:
-            data = fetch_single_stock_data(ticker, period)
-            stock_data[ticker] = data
-            logger.info(f"[{i}/{total}] {ticker}: 成功")
-            
-        except Exception as e:
-            logger.error(f"[{i}/{total}] {ticker}: 失敗 ({str(e)})")
-            failed_tickers.append(ticker)
-            continue
+    # バッチ処理でデータを取得
+    for batch_num in range(0, total, batch_size):
+        batch_tickers = tickers[batch_num:batch_num + batch_size]
+        batch_start = batch_num + 1
+        batch_end = min(batch_num + batch_size, total)
         
-        # APIレート制限を考慮して短い待機を入れる
-        sleep(0.5)
+        logger.info(f"バッチ処理 {batch_start}-{batch_end}/{total}: {len(batch_tickers)}銘柄を処理します")
+        
+        for i, ticker in enumerate(batch_tickers, batch_start):
+            try:
+                data = fetch_single_stock_data(ticker, period)
+                stock_data[ticker] = data
+                logger.info(f"[{i}/{total}] {ticker}: 成功")
+                
+            except Exception as e:
+                logger.error(f"[{i}/{total}] {ticker}: 失敗 ({str(e)})")
+                failed_tickers.append(ticker)
+                continue
+            
+            # APIレート制限を考慮してランダムな待機時間を入れる
+            wait_time = random.uniform(5.0, 10.0)
+            logger.debug(f"待機時間: {wait_time:.2f}秒")
+            sleep(wait_time)
+        
+        # バッチ間でより長い待機時間を設ける
+        if batch_end < total:
+            batch_wait = random.uniform(30.0, 60.0)
+            logger.info(f"バッチ間待機: {batch_wait:.2f}秒")
+            sleep(batch_wait)
     
     success_count = len(stock_data)
     logger.info(f"\n取得完了: {success_count}/{total}銘柄のデータを取得しました")
@@ -176,6 +199,7 @@ def main():
     parser = argparse.ArgumentParser(description="株価データを取得して更新します")
     parser.add_argument("tickers", nargs="?", default="", help="カンマ区切りの銘柄コード")
     parser.add_argument("--period", default="10d", help="データ期間 (default: 10d)")
+    parser.add_argument("--batch-size", type=int, default=5, help="バッチサイズ (default: 5)")
 
     args = parser.parse_args()
 
@@ -192,7 +216,7 @@ def main():
             
         logger.info(f"取得した銘柄: {', '.join(tickers)}")
 
-        stock_data = fetch_stock_data(tickers, args.period)
+        stock_data = fetch_stock_data(tickers, args.period, args.batch_size)
         if not stock_data:
             logger.error("株価データの取得に失敗しました")
             sys.exit(1)
