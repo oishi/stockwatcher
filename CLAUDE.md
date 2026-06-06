@@ -28,7 +28,12 @@ python src/python/price_updater.py --period 30d
 ```
 
 ### テストについて
-- 現在、自動テストは実装されていません
+- Python の単体テストを pytest で実装（`tests/`）。外部 I/O（yfinance / requests）はモックし、ネットワークに依存しない純粋ロジックを対象とする
+- 実行（リポジトリ直下から）:
+  ```bash
+  pip install -r requirements-dev.txt
+  pytest
+  ```
 - Google Apps Scriptの `debug.gs` に `testProcessStockData()` 関数があり、手動テストに使用できます
 
 ## システムアーキテクチャ
