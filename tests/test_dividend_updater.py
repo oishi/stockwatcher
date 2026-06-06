@@ -180,3 +180,68 @@ def test_metrics_ignores_none_gaps():
     series = [56, 56, None, 15, 15]  # 新→古, 古→新有効: 15,15,56,56
     # transitions: flat, up, flat → W=2, X=0, V=3
     assert du.dividend_metrics(series) == {"V": 3, "W": 2, "X": 0}
+
+
+# --- collect_dividends -------------------------------------------------
+
+def test_collect_dividends_aggregates_and_skips_failures():
+    from datetime import datetime, timezone
+
+    lfy = datetime(2025, 5, 31, tzinfo=timezone.utc)
+
+    def factory(code):
+        if code == "1419.T":
+            return _FakeTicker(
+                code, lfy, _series([("2024-05-29", 190.0), ("2025-05-29", 195.0)])
+            )
+        raise RuntimeError("no data")  # 9999.T は取得失敗
+
+    result = du.collect_dividends(
+        ["1419", "9999"], years=3, sleep_seconds=0, ticker_factory=factory
+    )
+    # 成功銘柄のみ .T 付きキーで入り、失敗銘柄はスキップされる
+    assert set(result.keys()) == {"1419.T"}
+    assert result["1419.T"] == [195.0, 190.0, None]
+
+
+# --- post_dividends_to_gas ---------------------------------------------
+
+class _FakeResp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._payload
+
+
+def test_post_dividends_payload_shape(monkeypatch):
+    captured = {}
+
+    def fake_post(url, json=None):
+        captured["url"] = url
+        captured["json"] = json
+        return _FakeResp({"updateDividends": {"status": "success"}})
+
+    monkeypatch.setattr(du.requests, "post", fake_post)
+
+    res = du.post_dividends_to_gas({"6539.T": [56, 56, 49]}, "https://example.test/gas")
+
+    # type 分岐用の type と data を持つ payload になっている
+    assert captured["json"] == {"type": "dividend", "data": {"6539.T": [56, 56, 49]}}
+    assert res["updateDividends"]["status"] == "success"
+
+
+def test_post_dividends_empty_skips_request(monkeypatch):
+    called = {"posted": False}
+
+    def fake_post(url, json=None):
+        called["posted"] = True
+        return _FakeResp({})
+
+    monkeypatch.setattr(du.requests, "post", fake_post)
+
+    assert du.post_dividends_to_gas({}, "https://example.test/gas") == {}
+    assert called["posted"] is False

@@ -9,7 +9,19 @@ yfinance の ex-date 付き配当(`Ticker.dividends`)を、決算月基準の会
 取得関数はモック前提で薄く保つ。
 """
 
+import argparse
+import json
+import logging
+import os
+import sys
+from time import sleep
 from typing import Dict, List, Optional
+
+import requests
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 
 def fiscal_year_of(ex_date, fy_end_month: int) -> int:
@@ -120,3 +132,97 @@ def dividend_metrics(annual_series) -> Dict[str, int]:
         v += 1
 
     return {"V": v, "W": w, "X": x}
+
+
+def collect_dividends(
+    tickers: List[str],
+    years: int = 11,
+    sleep_seconds: float = 2.0,
+    ticker_factory=None,
+) -> Dict[str, List[Optional[float]]]:
+    """複数銘柄の年間配当系列を取得し ``{"6539.T": [配当0..10], ...}`` を返す。
+
+    各銘柄で yfinance(info + dividends)へアクセスするため、レート制限を考慮して
+    銘柄間に ``sleep_seconds`` の待機を入れる。取得に失敗した銘柄はスキップする
+    （配当は3ヶ月に1回程度の低頻度更新のため、全件成功を必須とはしない）。
+    """
+    result: Dict[str, List[Optional[float]]] = {}
+    total = len(tickers)
+    for i, code in enumerate(tickers, 1):
+        try:
+            series = fetch_annual_dividends(code, years=years, ticker_factory=ticker_factory)
+            result[_format_code(code)] = series
+            logger.info(f"[{i}/{total}] {code}: 取得成功 {series}")
+        except Exception as e:  # noqa: BLE001 - 1銘柄の失敗で全体を止めない
+            logger.error(f"[{i}/{total}] {code}: 取得失敗 ({e})")
+        if i < total and sleep_seconds:
+            sleep(sleep_seconds)
+    return result
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def post_dividends_to_gas(
+    dividends_by_code: Dict[str, List[Optional[float]]], gas_url: str
+) -> dict:
+    """配当データを GAS へ送信する。
+
+    payload は ``{"type": "dividend", "data": {"6539.T": [配当0..10], ...}}``。
+    GAS 側は ``type=="dividend"`` を配当処理へ振り分ける（株価 payload とは後方互換）。
+    """
+    if not dividends_by_code:
+        logger.warning("送信する配当データがありません")
+        return {}
+    payload = {"type": "dividend", "data": dividends_by_code}
+    response = requests.post(gas_url, json=payload)
+    response.raise_for_status()
+    result = response.json()
+    logger.info(
+        f"配当データ送信完了: {len(dividends_by_code)}銘柄, "
+        f"Response: {json.dumps(result, ensure_ascii=False)}"
+    )
+    return result
+
+
+def main():
+    load_dotenv()
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    parser = argparse.ArgumentParser(description="配当履歴を取得して GAS に送信します")
+    parser.add_argument("tickers", nargs="?", default="", help="カンマ区切りの銘柄コード")
+    parser.add_argument("--years", type=int, default=11, help="取得する年数 (default: 11)")
+    parser.add_argument(
+        "--sleep", type=float, default=2.0, help="銘柄間の待機秒 (default: 2.0)"
+    )
+    args = parser.parse_args()
+
+    gas_url = os.getenv("GAS_ENDPOINT_URL")
+    if not gas_url:
+        logger.error("環境変数 GAS_ENDPOINT_URL が設定されていません")
+        sys.exit(1)
+
+    if args.tickers:
+        tickers = args.tickers.split(",")
+    else:
+        # 銘柄リスト取得は株価側の実装を再利用する
+        import price_updater
+
+        tickers = price_updater.fetch_tickers_from_gas(gas_url)
+
+    if not tickers:
+        logger.error("処理する銘柄がありません")
+        sys.exit(1)
+
+    logger.info(f"配当取得対象: {len(tickers)}銘柄")
+    dividends = collect_dividends(tickers, years=args.years, sleep_seconds=args.sleep)
+    if not dividends:
+        logger.error("配当データを取得できませんでした")
+        sys.exit(1)
+
+    post_dividends_to_gas(dividends, gas_url)
+    logger.info("配当の更新処理が完了しました")
+
+
+if __name__ == "__main__":
+    main()

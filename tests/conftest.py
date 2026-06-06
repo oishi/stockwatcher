@@ -8,6 +8,7 @@ price_updater の一部関数は tenacity の @retry でラップされており
 import pytest
 from tenacity import wait_none
 
+import dividend_updater
 import price_updater
 
 
@@ -17,6 +18,7 @@ def _disable_retry_wait():
         price_updater.fetch_single_stock_data,
         price_updater.post_to_gas,
         price_updater.fetch_tickers_from_gas,
+        dividend_updater.post_dividends_to_gas,
     ):
         retry = getattr(fn, "retry", None)
         if retry is not None:
