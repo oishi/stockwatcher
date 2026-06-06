@@ -76,3 +76,24 @@ function clearLogSheet() {
     logSheet.appendRow(['Timestamp', 'Error Message']);
   }
 }
+
+
+// computeDividendMetrics の検証（Python の dividend_metrics・ユーザー確認値と一致するか）
+function testDividendMetrics() {
+  // 6539(MS-Japan): 期待 V8/W4/X0
+  Logger.log("6539 => " + JSON.stringify(computeDividendMetrics(["", "", 9, 11, 15, 15, 15, 15, 49, 56, 56])));
+  // 1419(タマホーム): 期待 V10/W1/X0
+  Logger.log("1419 => " + JSON.stringify(computeDividendMetrics([10, 10, 15, 30, 53, 70, 100, 125, 180, 185, 195])));
+  // 直近に減配があるケース(古→新 10,20,15,15,30): 期待 V2/W1/X1
+  Logger.log("decline => " + JSON.stringify(computeDividendMetrics([10, 20, 15, 15, 30])));
+}
+
+
+// updateDividends の手動テスト（list の 1419 行を実際に更新する。実行前に対象データを確認）
+function testUpdateDividends() {
+  var testData = {
+    "1419.T": [195, 190, 180, 125, 60, 70, 53, 30, 15, 10, 10]
+  };
+  var result = updateDividends(testData);
+  Logger.log(JSON.stringify(result));
+}
