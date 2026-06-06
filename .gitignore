@@ -12,3 +12,7 @@ venv/
 
 # Other files
 *.vscodevenv/
+
+# Claude Code: issuesのみ追跡、その他ローカル設定は無視
+.claude/*
+!.claude/issues/
