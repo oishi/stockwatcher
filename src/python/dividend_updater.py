@@ -81,3 +81,42 @@ def fetch_annual_dividends(code, years: int = 11, ticker_factory=None) -> List[O
 
     annual = aggregate_annual_dividends(ticker.dividends, fy_end_month)
     return build_annual_series(annual, latest_fy, years)
+
+
+def dividend_metrics(annual_series) -> Dict[str, int]:
+    """配当系列から派生指標 連増(V)/維持(W)/減配(X) を算出する。
+
+    ``annual_series`` は build_annual_series と同じ「配当0(最新)〜配当N(古)」の
+    並び。None は欠損として除外し、残った有効値を古い順に並べて前年比を評価する。
+
+    - V 連増 = 最新側から遡り「減配していない(同一 or 増配)」が連続する年数
+    - W 維持 = 前年比が同一だった年数（通算）
+    - X 減配 = 前年比が減配だった年数（通算）
+
+    GAS 側（シート上のマージ後配当列で計算する本番実装）の参照仕様であり、
+    ロジックの正しさをこの Python 実装＋テストで担保する。
+    """
+    # 配当0..N(新→古) を 古→新 に並べ替え、欠損を除外
+    values = [v for v in reversed(list(annual_series)) if v is not None]
+
+    transitions = []  # 'up' / 'flat' / 'down'（古→新の順）
+    for i in range(1, len(values)):
+        prev, cur = values[i - 1], values[i]
+        if cur > prev:
+            transitions.append("up")
+        elif cur == prev:
+            transitions.append("flat")
+        else:
+            transitions.append("down")
+
+    w = transitions.count("flat")
+    x = transitions.count("down")
+
+    # V: 最新(末尾)から遡って down でない限り連続加算
+    v = 0
+    for t in reversed(transitions):
+        if t == "down":
+            break
+        v += 1
+
+    return {"V": v, "W": w, "X": x}

@@ -143,3 +143,40 @@ def test_fetch_annual_dividends_raises_without_fiscal_year():
 
     with pytest.raises(ValueError):
         du.fetch_annual_dividends("1419", ticker_factory=factory)
+
+
+# --- dividend_metrics (V/W/X) ------------------------------------------
+
+def test_metrics_ms_japan_6539():
+    # 配当0..10(新→古)。末尾2年は欠損。ユーザー確認値: V=8, W=4, X=0
+    series = [56, 56, 49, 15, 15, 15, 15, 11, 9, None, None]
+    assert du.dividend_metrics(series) == {"V": 8, "W": 4, "X": 0}
+
+
+def test_metrics_tamahome_1419():
+    # ユーザー確認値: V=10, W=1, X=0
+    series = [195, 185, 180, 125, 100, 70, 53, 30, 15, 10, 10]
+    assert du.dividend_metrics(series) == {"V": 10, "W": 1, "X": 0}
+
+
+def test_metrics_with_recent_decline_breaks_streak():
+    # 古→新: 10,20,15,15,30 → 直近は 15→15(維持)→30(増)。途中 20→15 で減配1回
+    # 新→古入力: [30,15,15,20,10]
+    # transitions(古→新): up, down, flat, up
+    #   W(flat)=1, X(down)=1, V=末尾から up,flat,(down で停止)=2
+    series = [30, 15, 15, 20, 10]
+    assert du.dividend_metrics(series) == {"V": 2, "W": 1, "X": 1}
+
+
+def test_metrics_all_declining():
+    # 古→新: 50,40,30 (新→古入力 [30,40,50]) → 全減配
+    # transitions: down, down → V=0, W=0, X=2
+    series = [30, 40, 50]
+    assert du.dividend_metrics(series) == {"V": 0, "W": 0, "X": 2}
+
+
+def test_metrics_ignores_none_gaps():
+    # 欠損を除外して評価する（先頭・途中の None）
+    series = [56, 56, None, 15, 15]  # 新→古, 古→新有効: 15,15,56,56
+    # transitions: flat, up, flat → W=2, X=0, V=3
+    assert du.dividend_metrics(series) == {"V": 3, "W": 2, "X": 0}
