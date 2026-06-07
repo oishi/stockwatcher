@@ -13,6 +13,14 @@ function onOpen() {
 function doPost(e) {
   var jsonData = JSON.parse(e.postData.contents);
 
+  // 配当更新は type="dividend" で振り分ける。
+  // 株価 payload は type を持たない（{ "6539.T": [...] }）ため従来処理に流れる（後方互換）。
+  if (jsonData.type === "dividend") {
+    var dividendResult = updateDividends(jsonData.data);
+    var dividendResponse = { "updateDividends": dividendResult };
+    return ContentService.createTextOutput(JSON.stringify(dividendResponse)).setMimeType(ContentService.MimeType.JSON);
+  }
+
   var processResult = processStockData(jsonData);
   var updateResult = updateListSheet(jsonData);
 
