@@ -5,11 +5,15 @@
 ## 開発環境とコマンド
 
 ### 必要な設定
-- Python 3.x と以下のライブラリが必要：
+- **Python 3.10 以上が必須**（推奨 3.12）。yfinance 1.4.1 が依存する `curl_cffi>=0.15` は Python 3.10 以上でないとインストールできないため。
+  Python 3.9 以下で venv を作ると `pip install` 時に `curl_cffi` の解決に失敗する。
   ```bash
+  python3.12 -m venv venv
+  . venv/bin/activate
   pip install -r requirements.txt
   ```
 - 環境変数 `GAS_ENDPOINT_URL` を設定（Google Apps ScriptのエンドポイントURL）
+  - `.env` は `.gitignore` 対象のため clone には含まれない。別マシンでは手動で用意すること。
 
 ### 基本的な実行コマンド
 ```bash
