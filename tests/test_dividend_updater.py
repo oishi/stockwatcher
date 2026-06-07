@@ -130,6 +130,21 @@ def test_fetch_annual_dividends_with_mock():
     assert result == [95.0, 190.0, None]
 
 
+def test_fetch_annual_dividends_rounds_fractional(monkeypatch):
+    from datetime import datetime, timezone
+
+    lfy = datetime(2025, 5, 31, tzinfo=timezone.utc)
+    # 分割調整由来の端数(58.333332)と半期端数(52.5)を四捨五入する
+    div = _series([("2024-05-29", 52.5), ("2025-05-29", 58.333332)])
+
+    def factory(code):
+        return _FakeTicker(code, lfy, div)
+
+    result = du.fetch_annual_dividends("x", years=2, ticker_factory=factory)
+    # FY2025=58.333→58, FY2024=52.5→53(四捨五入)
+    assert result == [58, 53]
+
+
 def test_fetch_annual_dividends_raises_without_fiscal_year():
     from datetime import datetime, timezone
 

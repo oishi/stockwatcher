@@ -92,7 +92,10 @@ def fetch_annual_dividends(code, years: int = 11, ticker_factory=None) -> List[O
     latest_fy = last_fiscal_year_end.year  # 決算日の暦年＝最新確定会計年度ラベル
 
     annual = aggregate_annual_dividends(ticker.dividends, fy_end_month)
-    return build_annual_series(annual, latest_fy, years)
+    series = build_annual_series(annual, latest_fy, years)
+    # 株式分割の遡及調整等で生じる端数は、円単位の整数に四捨五入する。
+    # round() は銀行丸め(偶数丸め)のため、配当は非負である前提で int(v + 0.5) を使う。
+    return [None if v is None else int(v + 0.5) for v in series]
 
 
 def dividend_metrics(annual_series) -> Dict[str, int]:
